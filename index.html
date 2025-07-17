@@ -118,7 +118,7 @@
 
         // IMPORTANTE: SUBSTITUA ESTE URL!
         // Este será o URL do seu Google Apps Script (Passo 2.5)
-        const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz8CPMC_R3NoERkmrIZXZAzb629gYAiHOYDZ0QhRMujl-tYUpdfj0-gHerAD4wKuQjs/exec';
+        const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyeXtwk5On7TLiOBRLcPbUzIy4kFZ2sDdDR8OCtVTBu3henjSp5OvcS6EgSEPOOuwnT/exec';
 
         let streamGlobal = null; // Para armazenar o stream da câmera
 
@@ -138,12 +138,13 @@
             let longitude = null;
             let imageDataURL = null;
 
-            // Valida se o URL do Apps Script foi configurado
-            if (APPS_SCRIPT_WEB_APP_URL === 'https://script.google.com/macros/s/AKfycbz8CPMC_R3NoERkmrIZXZAzb629gYAiHOYDZ0QhRMujl-tYUpdfj0-gHerAD4wKuQjs/exec' || !APPS_SCRIPT_WEB_APP_URL.startsWith('https://script.google.com/macros/')) {
-                showStatus('Erro: O URL do Google Apps Script não foi configurado corretamente no código.', false, 'error');
-                console.error('Por favor, substitua "SEU_URL_DO_APPS_SCRIPT_AQUI" pelo URL real do seu aplicativo web do Apps Script.');
-                return;
-            }
+            // REMOVEMOS A VALIDAÇÃO PROBLEMÁTICA AQUI!
+            // Não precisamos mais deste bloco 'if' porque o URL já está correto.
+            // if (APPS_SCRIPT_WEB_APP_URL === 'https://script.google.com/macros/s/AKfycbyeXtwk5On7TLiOBRLcPbUzIy4kFZ2sDdDR8OCtVTBu3henjSp5OvcS6EgSEPOOuwnT/exec' || !APPS_SCRIPT_WEB_APP_URL.startsWith('https://script.google.com/macros/')) {
+            //     showStatus('Erro: O URL do Google Apps Script não foi configurado corretamente no código.', false, 'error');
+            //     console.error('Por favor, substitua "SEU_URL_DO_APPS_SCRIPT_AQUI" pelo URL real do seu aplicativo web do Apps Script.');
+            //     return;
+            // }
 
             try {
                 // 1. Solicitar Localização
